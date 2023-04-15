@@ -1,16 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/joho/godotenv/autoload"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -33,6 +37,22 @@ func mongoClient() *mongo.Client {
 	}
 
 	return client
+}
+
+func setAvatarHeaders(c *fiber.Ctx, buff bytes.Buffer, ext string) error {
+	switch ext {
+	case ".png":
+		c.Set("Content-Type", "image/png")
+	case ".jpg":
+		c.Set("Content-Type", "image/jpeg")
+	case ".jpeg":
+		c.Set("Content-Type", "image/jpeg")
+	}
+
+	c.Set("Cache-Control", "public, max-age=31536000")
+	c.Set("Content-Length", strconv.Itoa(len(buff.Bytes())))
+
+	return c.Next()
 }
 
 func main() {
@@ -117,6 +137,45 @@ func main() {
 				"size": fileSize,
 			},
 		})
+	})
+
+	// Get image from GridFS bucket in MongoDB using image id
+	app.Get("/api/image/id/:id", func(c *fiber.Ctx) error {
+		// Get image id from request params and convert it to ObjectID
+		id, err := primitive.ObjectIDFromHex(c.Params("id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": true,
+				"msg":   err.Error(),
+			})
+		}
+
+		// Create db connection
+		db := mongoClient().Database("go-fs")
+
+		// Create variable to store image metadata
+		var avatarMetadata bson.M
+
+		// Get image metadata from GridFS bucket
+		if err := db.Collection("images.files").FindOne(c.Context(), fiber.Map{"_id": id}).Decode(&avatarMetadata); err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": true,
+				"msg":   "Avatar not found",
+			})
+		}
+
+		// Create buffer to store image content
+		var buffer bytes.Buffer
+		// Create bucket
+		bucket, _ := gridfs.NewBucket(db, options.GridFSBucket().SetName("images"))
+		// Download image from GridFS bucket to buffer
+		bucket.DownloadToStream(id, &buffer)
+
+		// Set required headers
+		setAvatarHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
+
+		// Return image
+		return c.Send(buffer.Bytes())
 	})
 
 	app.Listen(":3000")
