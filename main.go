@@ -178,5 +178,38 @@ func main() {
 		return c.Send(buffer.Bytes())
 	})
 
+	// Get image from GridFS bucket in MongoDB using image name
+	app.Get("/api/image/name/:name", func(c *fiber.Ctx) error {
+		// Get image name from request params
+		name := c.Params("name")
+
+		// Create db connection
+		db := mongoClient().Database("go-fs")
+
+		// Create variable to store image metadata
+		var avatarMetadata bson.M
+
+		// Get image metadata from GridFS bucket
+		if err := db.Collection("images.files").FindOne(c.Context(), fiber.Map{"filename": name}).Decode(&avatarMetadata); err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": true,
+				"msg":   "Avatar not found",
+			})
+		}
+
+		// Create buffer to store image content
+		var buffer bytes.Buffer
+		// Create bucket
+		bucket, _ := gridfs.NewBucket(db, options.GridFSBucket().SetName("images"))
+		// Download image from GridFS bucket to buffer
+		bucket.DownloadToStreamByName(name, &buffer)
+
+		// Set required headers
+		setAvatarHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
+
+		// Return image
+		return c.Send(buffer.Bytes())
+	})
+
 	app.Listen(":3000")
 }
