@@ -42,7 +42,7 @@ func mongoClient() *mongo.Client {
 }
 
 // Set response headers according to file extension
-// @param c *fiber.Ctx
+// @param c *fiber.Ctx context
 // @param buff bytes.Buffer
 // @param ext string
 // @return error error
