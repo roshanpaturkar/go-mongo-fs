@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	_ "github.com/joho/godotenv/autoload"
+	_ "github.com/joho/godotenv/autoload"			// Load .env file automatically
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson"
@@ -19,6 +19,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// Create MongoDB client connection
+// @return *mongo.Client client
 func mongoClient() *mongo.Client {
 	serverAPIOptions := options.ServerAPI(options.ServerAPIVersion1)
 	clientOptions := options.Client().ApplyURI(os.Getenv("MONGODB_SRV_RECORD")).SetServerAPIOptions(serverAPIOptions)
@@ -39,7 +41,12 @@ func mongoClient() *mongo.Client {
 	return client
 }
 
-func setAvatarHeaders(c *fiber.Ctx, buff bytes.Buffer, ext string) error {
+// Set response headers according to file extension
+// @param c *fiber.Ctx
+// @param buff bytes.Buffer
+// @param ext string
+// @return error error
+func setResponseHeaders(c *fiber.Ctx, buff bytes.Buffer, ext string) error {
 	switch ext {
 	case ".png":
 		c.Set("Content-Type", "image/png")
@@ -56,9 +63,12 @@ func setAvatarHeaders(c *fiber.Ctx, buff bytes.Buffer, ext string) error {
 }
 
 func main() {
+	// Create new Fiber app instance with default config settings
 	app := fiber.New()
 
 	// Upload image to GridFS bucket in MongoDB
+	// @param file file
+	// @return image metadata
 	app.Post("/api/image", func(c *fiber.Ctx) error {
 		// Check if file is present in request body or not
 		fileHeader, err := c.FormFile("file")
@@ -140,6 +150,8 @@ func main() {
 	})
 
 	// Get image from GridFS bucket in MongoDB using image id
+	// @param id string
+	// @return image content
 	app.Get("/api/image/id/:id", func(c *fiber.Ctx) error {
 		// Get image id from request params and convert it to ObjectID
 		id, err := primitive.ObjectIDFromHex(c.Params("id"))
@@ -172,13 +184,15 @@ func main() {
 		bucket.DownloadToStream(id, &buffer)
 
 		// Set required headers
-		setAvatarHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
+		setResponseHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
 
 		// Return image
 		return c.Send(buffer.Bytes())
 	})
 
 	// Get image from GridFS bucket in MongoDB using image name
+	// @param name string
+	// @return image content
 	app.Get("/api/image/name/:name", func(c *fiber.Ctx) error {
 		// Get image name from request params
 		name := c.Params("name")
@@ -205,7 +219,7 @@ func main() {
 		bucket.DownloadToStreamByName(name, &buffer)
 
 		// Set required headers
-		setAvatarHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
+		setResponseHeaders(c, buffer, avatarMetadata["metadata"].(bson.M)["ext"].(string))
 
 		// Return image
 		return c.Send(buffer.Bytes())
