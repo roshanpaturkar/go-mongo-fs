@@ -1,1 +1,1 @@
-# Go Fiber and MongoDB GridFS File Server
+# Go Fiber and MongoDB GridFS Image Server
