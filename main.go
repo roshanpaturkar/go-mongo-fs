@@ -71,7 +71,7 @@ func main() {
 	// @return image metadata
 	app.Post("/api/image", func(c *fiber.Ctx) error {
 		// Check if file is present in request body or not
-		fileHeader, err := c.FormFile("file")
+		fileHeader, err := c.FormFile("image")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": true,
@@ -124,7 +124,7 @@ func main() {
 			})
 		}
 
-		// Close upload stream
+		// Close upload stream after uploading file
 		fieldId := uploadStream.FileID
 		defer uploadStream.Close()
 
