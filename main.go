@@ -225,5 +225,39 @@ func main() {
 		return c.Send(buffer.Bytes())
 	})
 
+	// Delete image from GridFS bucket in MongoDB using image id
+	// @param id string
+	// @return success message
+	app.Delete("/api/image/id/:id", func(c *fiber.Ctx) error {
+		// Get image id from request params and convert it to ObjectID
+		id, err := primitive.ObjectIDFromHex(c.Params("id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": true,
+				"msg":   err.Error(),
+			})
+		}
+
+		// Create db connection
+		db := mongoClient().Database("go-fs")
+
+		// Create bucket
+		bucket, _ := gridfs.NewBucket(db, options.GridFSBucket().SetName("images"))
+
+		// Delete image from GridFS bucket
+		if err := bucket.Delete(id); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": true,
+				"msg":   err.Error(),
+			})
+		}
+
+		// Return success message
+		return c.JSON(fiber.Map{
+			"error": false,
+			"msg":   "Image deleted successfully",
+		})
+	})
+
 	app.Listen(":3000")
 }
